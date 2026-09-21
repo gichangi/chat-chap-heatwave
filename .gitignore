@@ -25,3 +25,9 @@ outputs/*.csv
 # OS
 .DS_Store
 Thumbs.db
+.idea/
+.tmp/
+chap_model/.test-artifacts/
+chap_model/config.yml
+chap_model/model.pickle
+chap_model/data/

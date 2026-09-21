@@ -1,0 +1,13 @@
+services:
+  heatwave-model:
+    image: ghcr.io/gichangi/chat-chap-heatwave-model:latest
+    pull_policy: always
+    ports: ["5010:8000"]
+    environment:
+      SERVICEKIT_ORCHESTRATOR_URL: http://chap:8000/v2/services/$$register
+      # SERVICEKIT_REGISTRATION_KEY: ${SERVICEKIT_REGISTRATION_KEY:-}
+      # HEATWAVE_COVARIATE_TABLE: /data/covariate_table.csv
+    # volumes:
+    #   - ./covariate_table.csv:/data/covariate_table.csv:ro
+    depends_on:
+      chap: {condition: service_healthy}
