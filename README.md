@@ -157,6 +157,62 @@ The configured model should use template `heatwave-covariate-model`, have
 `max_heat_index`, and `heatwave_event_count` as additional continuous
 covariates.
 
+##### Copy and paste setup
+
+Run this entire block from the root of your **chap-core checkout**. It assumes
+chap-core uses its default host port `8000`. If the GHCR package is private,
+run `docker login ghcr.io` first.
+
+```bash
+set -e
+
+# Get this repository beside chap-core, unless it is already there.
+if [ ! -d ../chat-chap-heatwave ]; then
+  git clone https://github.com/gichangi/chat-chap-heatwave ../chat-chap-heatwave
+fi
+
+# Add the heatwave chapkit service to the chap-core Compose stack.
+cp ../chat-chap-heatwave/chap_model/compose.heatwave.yml ./compose.heatwave.yml
+
+# Seed an explicit runnable configured model.
+# Do not add this entry to config/configured_models/default.yaml.
+cat > config/configured_models/heatwave.yaml <<'YAML'
+- url: http://heatwave-model:8000
+  uses_chapkit: true
+  versions:
+    service_v1: "/v1"
+  configurations:
+    default:
+      user_option_values:
+        heat_lag_weeks: 4
+        n_samples: 100
+        random_seed: 42
+        n_estimators: 200
+      additional_continuous_covariates:
+        - heatwave_days
+        - mean_heat_index
+        - max_heat_index
+        - heatwave_event_count
+YAML
+
+# The chap image copies config/ during its build, so rebuild chap and worker.
+docker compose -f compose.yml -f compose.heatwave.yml build chap worker
+docker compose -f compose.yml -f compose.heatwave.yml up -d
+
+# Verify the service and configured model.
+curl --fail --silent --show-error http://localhost:8000/v2/services
+echo
+curl --fail --silent --show-error http://localhost:8000/v1/crud/configured-models
+echo
+```
+
+The first response must contain `heatwave-covariate-model`. The second must
+contain its runnable configured model. To follow startup when either is absent:
+
+```bash
+docker compose -f compose.yml -f compose.heatwave.yml logs -f chap heatwave-model
+```
+
 Some installations require configured models to be declared in files. For
 those deployments, copy the supplied example into the chap-core checkout:
 
