@@ -1,13 +1,11 @@
-"""Shared, credential-free heat feature preparation."""
+"""Ward-specific weekly Heat Index climatology helpers."""
 from __future__ import annotations
-import os, re
-from pathlib import Path
+import re
 import numpy as np
 import pandas as pd
 
-HEAT_COLUMNS = ["heatwave_days", "mean_heat_index", "max_heat_index", "heatwave_event_count"]
-BASE_FEATURES = ["rainfall", "mean_temperature"]
 PERIOD_RE = re.compile(r"^(\d{4})-?W(\d{1,2})$")
+ORG_UNIT_ALIASES = ("organization_unit", "organisation_unit", "org_unit", "ward_id")
 
 def parse_period(value: object) -> tuple[int, int]:
     match = PERIOD_RE.fullmatch(str(value).strip())
@@ -20,28 +18,53 @@ def parse_period(value: object) -> tuple[int, int]:
 def normalize_period(value: object) -> str:
     year, week = parse_period(value); return f"{year:04d}-W{week:02d}"
 
-def load_heat_covariates(frame: pd.DataFrame) -> pd.DataFrame:
-    result = frame.copy(); result["time_period"] = result["time_period"].map(normalize_period)
-    if all(column in result.columns for column in HEAT_COLUMNS): return result
-    sidecar_path = os.getenv("HEATWAVE_COVARIATE_TABLE")
-    if not sidecar_path: raise ValueError("heat covariates are required: include all four heat columns or set HEATWAVE_COVARIATE_TABLE")
-    sidecar = pd.read_csv(Path(sidecar_path))
-    missing = [c for c in ["time_period", "location", *HEAT_COLUMNS] if c not in sidecar]
-    if missing: raise ValueError("HEATWAVE_COVARIATE_TABLE is missing columns: " + ", ".join(missing))
-    sidecar["time_period"] = sidecar["time_period"].map(normalize_period)
-    return result.drop(columns=[c for c in HEAT_COLUMNS if c in result], errors="ignore").merge(
-        sidecar[["time_period", "location", *HEAT_COLUMNS]], on=["time_period", "location"], how="left", validate="one_to_one")
+def normalize_organization_units(frame: pd.DataFrame) -> pd.DataFrame:
+    """Normalize a DHIS2 organization-unit column to CHAP's `location`."""
+    result = frame.copy()
+    if "location" not in result:
+        matches = [name for name in ORG_UNIT_ALIASES if name in result]
+        if len(matches) != 1:
+            raise ValueError("data must contain location or exactly one organization-unit column: " + ", ".join(ORG_UNIT_ALIASES))
+        result = result.rename(columns={matches[0]: "location"})
+    if result["location"].isna().any() or (result["location"].astype(str).str.strip() == "").any():
+        raise ValueError("organization-unit identifiers cannot be empty")
+    result["location"] = result["location"].astype(str)
+    return result
 
-def build_features(frame: pd.DataFrame, heat_lag_weeks: int) -> tuple[pd.DataFrame, list[str]]:
-    required = ["time_period", "location", *BASE_FEATURES, *HEAT_COLUMNS]
-    missing = [c for c in required if c not in frame]
-    if missing: raise ValueError("data is missing feature columns: " + ", ".join(missing))
-    result = frame.copy(); result["time_period"] = result["time_period"].map(normalize_period)
-    result["_monday"] = [pd.Timestamp.fromisocalendar(*parse_period(v), 1) for v in result["time_period"]]
-    result = result.sort_values(["location", "_monday"]).copy(); lagged = []
-    for column in HEAT_COLUMNS:
-        name = f"{column}_lag_{heat_lag_weeks}"; result[name] = result.groupby("location", sort=False)[column].shift(heat_lag_weeks); lagged.append(name)
-    weeks = result["time_period"].map(lambda v: parse_period(v)[1]).astype(float)
-    result["week_sin"] = np.sin(2*np.pi*weeks/52.1775); result["week_cos"] = np.cos(2*np.pi*weeks/52.1775)
-    return result, [*BASE_FEATURES, *lagged, "week_sin", "week_cos"]
+def prepare_heat_index(frame: pd.DataFrame) -> pd.DataFrame:
+    result = normalize_organization_units(frame)
+    missing = [name for name in ("time_period", "max_heat_index") if name not in result]
+    if missing: raise ValueError("data is missing columns: " + ", ".join(missing))
+    result["time_period"] = result["time_period"].map(normalize_period)
+    result["iso_week"] = result["time_period"].map(lambda value: parse_period(value)[1])
+    result["max_heat_index"] = pd.to_numeric(result["max_heat_index"], errors="coerce")
+    if result["max_heat_index"].isna().any(): raise ValueError("max_heat_index must contain a value for every organization unit and week")
+    return result
 
+def _week_distance(weeks: pd.Series, week: int) -> pd.Series:
+    delta = (weeks.astype(int) - week).abs(); return np.minimum(delta, 53 - delta)
+
+def fit_climatology(frame: pd.DataFrame, percentile: float = 90, pooling_window_weeks: int = 1, min_baseline_observations: int = 3) -> dict:
+    data = prepare_heat_index(frame); thresholds: dict[str, dict[int, float]] = {}
+    for location, group in data.groupby("location", sort=True):
+        by_week = {}
+        for week in range(1, 54):
+            pooled = group.loc[_week_distance(group["iso_week"], week) <= pooling_window_weeks, "max_heat_index"]
+            if len(pooled) >= min_baseline_observations: by_week[week] = float(np.percentile(pooled.to_numpy(), percentile))
+        if not by_week: raise ValueError(f"organization unit {location!r} has insufficient climatology observations")
+        thresholds[str(location)] = by_week
+    return {"thresholds": thresholds, "percentile": float(percentile), "pooling_window_weeks": int(pooling_window_weeks), "min_baseline_observations": int(min_baseline_observations)}
+
+def classify_heatwave_weeks(frame: pd.DataFrame, artifact: dict) -> pd.DataFrame:
+    data = prepare_heat_index(frame)
+    unknown = sorted(set(data["location"]) - set(artifact["thresholds"]))
+    if unknown: raise ValueError("future data contains organization units absent from the climatology: " + ", ".join(unknown))
+    def threshold_for(row: pd.Series) -> float:
+        thresholds = artifact["thresholds"][row["location"]]; week = int(row["iso_week"])
+        if week in thresholds: return thresholds[week]
+        nearest = min(thresholds, key=lambda candidate: min(abs(candidate-week), 53-abs(candidate-week)))
+        return thresholds[nearest]
+    output = data[["time_period", "location", "max_heat_index"]].copy()
+    output["climatological_threshold"] = data.apply(threshold_for, axis=1)
+    output["heatwave_flag"] = (output["max_heat_index"] > output["climatological_threshold"]).astype(int)
+    return output

@@ -10,4 +10,4 @@ def test_health_and_service_info():
         assert client.get("/health").status_code == 200
         response = client.get("/api/v1/info")
         assert response.status_code == 200
-        assert response.json()["id"] == "heatwave-covariate-model"
+        assert response.json()["id"] == "ward-heatwave-threshold-model"

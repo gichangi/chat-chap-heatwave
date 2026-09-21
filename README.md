@@ -67,8 +67,9 @@ Modeling App.
    the plan and smoke stages first.
 2. `scripts/chap_dataset.py` joins that table to health data and writes a CHAP
    dataset. This step is credential free.
-3. `chap_model/` trains and predicts with lagged heat covariates. Its container
-   never calls Earth Engine.
+3. `chap_model/` learns a separate seasonal Heat Index climatology for every
+   ward or organization unit and flags strict threshold exceedances. Its
+   container never calls Earth Engine.
 
 ### Covariates and units
 
@@ -118,8 +119,13 @@ uv run python main.py
 uv run chapkit test --period-type weekly
 ```
 
-The service listens on port 9090 for local development. The committed synthetic
-data and `chap_model/tests/` provide a credential-free model contract test.
+The model treats CHAP's `location` as the DHIS2 organization-unit identifier;
+the scripts also accept `organization_unit`, `organisation_unit`, `org_unit`,
+or `ward_id` and normalize it to `location`. Training data must contain
+`time_period`, the organization unit, and `max_heat_index`. Prediction returns
+binary samples: `1` only when that ward's weekly maximum Heat Index is strictly
+greater than its own seasonal percentile threshold. The service listens on
+port 9090 for local development.
 
 ### 3. Add it to chap-core
 
@@ -136,12 +142,12 @@ Docker Compose v2.20 or newer and a chap-core clone are required.
    ```
 
 4. Check `curl http://localhost:8000/v2/services` for
-   `heatwave-covariate-model`, then open the DHIS2 Modeling App.
+   `ward-heatwave-threshold-model`, then open the DHIS2 Modeling App.
 
 #### Add it to chap-core configured models
 
 On current chap-core, service registration is sufficient. When
-`heatwave-covariate-model` registers, chap-core reads its config schema and
+`ward-heatwave-threshold-model` registers, chap-core reads its config schema and
 creates a default configured model automatically. Confirm both layers:
 
 ```bash
@@ -152,10 +158,8 @@ curl http://localhost:8000/v2/services
 curl http://localhost:8000/v1/crud/configured-models
 ```
 
-The configured model should use the repository
-`https://github.com/gichangi/chat-chap-heatwave` and list `heatwave_days`,
-`mean_heat_index`, `max_heat_index`, and `heatwave_event_count` as additional
-continuous covariates.
+The configured model uses `https://github.com/gichangi/chat-chap-heatwave` and
+declares `max_heat_index` as its required covariate.
 
 ##### Copy and paste setup
 
@@ -182,15 +186,10 @@ cat >> config/configured_models/default.yaml <<'YAML'
   configurations:
     default:
       user_option_values:
-        heat_lag_weeks: 4
+        threshold_percentile: 90
+        pooling_window_weeks: 1
+        min_baseline_observations: 3
         n_samples: 100
-        random_seed: 42
-        n_estimators: 200
-      additional_continuous_covariates:
-        - heatwave_days
-        - mean_heat_index
-        - max_heat_index
-        - heatwave_event_count
 YAML
 
 # The chap image copies config/ during its build, so rebuild chap and worker.
@@ -204,7 +203,7 @@ curl --fail --silent --show-error http://localhost:8000/v1/crud/configured-model
 echo
 ```
 
-The first response must contain `heatwave-covariate-model`. The second must
+The first response must contain `ward-heatwave-threshold-model`. The second must
 contain its runnable configured model. To follow startup when either is absent:
 
 ```bash
@@ -256,14 +255,16 @@ The literal `$$register` in the overlay is required Compose escaping. For a 401,
 check that `SERVICEKIT_REGISTRATION_KEY` matches chap-core. Port 5010 must be
 free. Apple Silicon may emit platform warnings for an amd64-only image.
 
-For sidecar mode, mount a weekly covariate CSV read-only and set
-`HEATWAVE_COVARIATE_TABLE` to its container path. To include the model in the
-standard chap-core bundle, add its overlay to chap-core's `compose.chapkit.yml`.
+To include the model in the standard chap-core bundle, add its overlay to
+chap-core's `compose.chapkit.yml`.
 
 ### Limitations
 
-- Reanalysis heat data has no future values. The model uses a four-week lag and
-  rejects forecast horizons longer than `heat_lag_weeks` (default 4).
+- This is an exceedance detector. Prediction rows must contain observed or
+  externally forecast `max_heat_index`; it does not forecast future weather.
+- Chap-core has no daily period type. The imported model therefore flags weekly
+  maxima. The Earth Engine pipeline computes exact daily flags and aggregates
+  them into `heatwave_days` for each ISO week.
 - The 4,841-ward dataset may be too large for some workflows; aggregate with a
   reviewed crosswalk when appropriate.
 - The model is experimental and reports `AssessedStatus.red`.

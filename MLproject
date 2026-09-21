@@ -1,44 +1,46 @@
-name: heatwave_covariate_model
+name: ward_heatwave_threshold_model
 
 uv_env: pyproject.toml
 supported_period_type: week
 required_covariates:
-  - rainfall
-  - mean_temperature
-allow_free_additional_continuous_covariates: true
+  - max_heat_index
+target: heatwave_flag
 
 meta_data:
-  display_name: Heatwave covariate model
-  description: Random forest disease forecast using climate variables and lagged heatwave indicators.
+  display_name: Ward heatwave threshold model
+  description: Flags weeks where a ward's maximum Heat Index exceeds its own seasonal climatological threshold.
   author: eHealth Africa
   organization: eHealth Africa
   documentation_url: https://github.com/gichangi/chat-chap-heatwave
   author_assessed_status: orange
 
 user_options:
-  heat_lag_weeks:
-    title: Heat lag weeks
+  threshold_percentile:
+    title: Climatological percentile
+    type: number
+    minimum: 0
+    maximum: 100
+    default: 90
+    description: Ward-specific percentile used as the exceedance threshold.
+  pooling_window_weeks:
+    title: Seasonal pooling window
+    type: integer
+    minimum: 0
+    maximum: 26
+    default: 1
+    description: Weeks on either side of each ISO week included in its climatology.
+  min_baseline_observations:
+    title: Minimum baseline observations
     type: integer
     minimum: 1
-    default: 4
-    description: Number of weeks by which heatwave indicators are lagged.
+    default: 3
+    description: Minimum pooled observations required to estimate a threshold.
   n_samples:
     title: Prediction samples
     type: integer
     minimum: 1
     default: 100
-    description: Number of residual bootstrap samples returned per forecast row.
-  random_seed:
-    title: Random seed
-    type: integer
-    default: 42
-    description: Seed used for model fitting and prediction sampling.
-  n_estimators:
-    title: Number of trees
-    type: integer
-    minimum: 1
-    default: 200
-    description: Number of trees in the random forest.
+    description: Number of identical binary samples returned per forecast row.
 
 entry_points:
   train:
