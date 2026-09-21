@@ -66,5 +66,5 @@ def classify_heatwave_weeks(frame: pd.DataFrame, artifact: dict) -> pd.DataFrame
         return thresholds[nearest]
     output = data[["time_period", "location", "max_heat_index"]].copy()
     output["climatological_threshold"] = data.apply(threshold_for, axis=1)
-    output["heatwave_flag"] = (output["max_heat_index"] > output["climatological_threshold"]).astype(int)
+    output["heatwave"] = (output["max_heat_index"] > output["climatological_threshold"]).astype(int)
     return output

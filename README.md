@@ -119,7 +119,8 @@ uv run python main.py
 uv run chapkit test --period-type weekly
 ```
 
-The model treats CHAP's `location` as the DHIS2 organization-unit identifier;
+The model target is `heatwave`, represented as a binary 0/1 exceedance. It
+treats CHAP's `location` as the DHIS2 organization-unit identifier;
 the scripts also accept `organization_unit`, `organisation_unit`, `org_unit`,
 or `ward_id` and normalize it to `location`. Training data must contain
 `time_period`, the organization unit, and `max_heat_index`. Prediction returns

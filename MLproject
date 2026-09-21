@@ -4,7 +4,7 @@ uv_env: pyproject.toml
 supported_period_type: week
 required_covariates:
   - max_heat_index
-target: heatwave_flag
+target: heatwave
 
 meta_data:
   display_name: Ward heatwave threshold model

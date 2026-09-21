@@ -34,7 +34,7 @@ def test_organization_unit_alias_and_strict_exceedance_rule():
     result = classify_heatwave_weeks(future, artifact)
     assert result["location"].tolist() == ["ward-a", "ward-b", "ward-a"]
     assert result["climatological_threshold"].tolist() == [100, 80, 100]
-    assert result["heatwave_flag"].tolist() == [1, 0, 0]
+    assert result["heatwave"].tolist() == [1, 0, 0]
 
 def test_unknown_organization_unit_is_rejected(tmp_path):
     config = tmp_path / "config.yml"; config.write_text("min_baseline_observations: 3\n")

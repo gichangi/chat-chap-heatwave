@@ -1,4 +1,4 @@
-time_period,location,disease_cases,population,rainfall,mean_temperature,heatwave_days,mean_heat_index,max_heat_index,heatwave_event_count
+time_period,location,heatwave,population,rainfall,mean_temperature,heatwave_days,mean_heat_index,max_heat_index,heatwave_event_count
 2024-W01,location_0,,100000,121.52044576258571,25.759090790367885,0,82.0,88.0,0
 2024-W02,location_0,,100000,120.2678951923336,24.779135351791876,0,82.0,88.0,0
 2024-W03,location_0,,100000,133.74478878230892,26.838484715555563,0,82.0,88.0,0
