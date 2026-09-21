@@ -5,10 +5,15 @@ sys.path.insert(0, os.path.dirname(__file__))
 import numpy as np, pandas as pd, yaml
 from heat_features import HEAT_COLUMNS, build_features, load_heat_covariates, normalize_period
 
+def _load_config(path: str) -> dict:
+    config_path = Path(path)
+    config = yaml.safe_load(config_path.read_text()) if config_path.exists() else {}
+    return config.get("user_option_values", config) if config else {}
+
 def main() -> None:
-    parser=argparse.ArgumentParser(); parser.add_argument("--historic",required=True); parser.add_argument("--future",required=True); parser.add_argument("--output",required=True); parser.add_argument("--geo"); args=parser.parse_args()
-    config=yaml.safe_load(Path("config.yml").read_text()) if Path("config.yml").exists() else {}
-    with Path("model.pickle").open("rb") as stream: artifact=pickle.load(stream)
+    parser=argparse.ArgumentParser(); parser.add_argument("--historic",required=True); parser.add_argument("--future",required=True); parser.add_argument("--model",default="model.pickle"); parser.add_argument("--output",required=True); parser.add_argument("--config",default="config.yml"); parser.add_argument("--geo"); args=parser.parse_args()
+    config=_load_config(args.config)
+    with Path(args.model).open("rb") as stream: artifact=pickle.load(stream)
     historic,future=pd.read_csv(args.historic),pd.read_csv(args.future); historic["time_period"]=historic["time_period"].map(normalize_period); future["time_period"]=future["time_period"].map(normalize_period)
     unknown=sorted(set(future["location"].astype(str))-set(artifact["trained_locations"]));
     if unknown: raise ValueError("future data contains locations absent from training: "+", ".join(unknown))

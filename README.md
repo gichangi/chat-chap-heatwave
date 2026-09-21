@@ -174,9 +174,8 @@ fi
 # Add the heatwave chapkit service to the chap-core Compose stack.
 cp ../chat-chap-heatwave/chap_model/compose.heatwave.yml ./compose.heatwave.yml
 
-# Seed an explicit runnable configured model.
-# Do not add this entry to config/configured_models/default.yaml.
-cat > config/configured_models/heatwave.yaml <<'YAML'
+# Seed an explicit runnable configured model in chap-core's default list.
+cat >> config/configured_models/default.yaml <<'YAML'
 - url: https://github.com/gichangi/chat-chap-heatwave
   versions:
     v1: "@main"
@@ -212,8 +211,8 @@ contain its runnable configured model. To follow startup when either is absent:
 docker compose -f compose.yml -f compose.heatwave.yml logs -f chap heatwave-model
 ```
 
-Some installations require configured models to be declared in files. For
-those deployments, copy the supplied example into the chap-core checkout:
+To keep the model in a separate configuration file instead, copy the supplied
+example into the chap-core checkout:
 
 ```bash
 cp /path/to/chat-chap-heatwave/chap_model/chap-core.configured-models.yaml.example \
@@ -222,13 +221,14 @@ cp /path/to/chat-chap-heatwave/chap_model/chap-core.configured-models.yaml.examp
 
 The example uses the repository URL and follows the same `versions` mapping as
 chap-core's other Git-hosted models. Pin `v1` to a commit SHA instead of
-`@main` when a deployment must remain reproducible. If you place the entry in a
-separate `heatwave.yaml`, do not also add a duplicate to `default.yaml`.
+`@main` when a deployment must remain reproducible. Add the entry to either
+`default.yaml` or a separate `heatwave.yaml` so it is seeded only once.
 
-This Git-hosted format makes chap-core load a root `MLProject.yaml` from the
-repository. The chapkit service and Compose registration path remain available,
-but Git-based seeding will only succeed when that compatibility file is present
-on the referenced branch or commit.
+This Git-hosted format makes chap-core load the root, case-sensitive
+[`MLproject`](MLproject) file. It exposes the same heatwave model through
+chap-core's Git model runner and accepts the configuration values shown above.
+The chapkit service and Compose registration path remain available as an
+alternative deployment method.
 
 Rebuild the chap and worker images so the new configuration file is included,
 then start the stack:

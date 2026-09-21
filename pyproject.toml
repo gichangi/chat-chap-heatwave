@@ -4,6 +4,12 @@ version = "0.1.0"
 description = "Ward-level heatwave detection pipeline producing a weekly covariate table for CHAP"
 requires-python = ">=3.11"
 readme = "README.md"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.3",
+    "pyyaml>=6.0",
+    "scikit-learn>=1.6",
+]
 
 [tool.setuptools.packages.find]
 include = ["heatwave*"]
