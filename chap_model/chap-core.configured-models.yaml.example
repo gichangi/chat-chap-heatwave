@@ -2,7 +2,8 @@
 # deployment requires explicit file-based seeding from the Git repository.
 - url: https://github.com/gichangi/chat-chap-heatwave
   versions:
-    v1: "@main"
+    v1: "@a46166a88ac846ac983301eae80480068023244a"
+    v2: "@main"
   configurations:
     default:
       user_option_values:

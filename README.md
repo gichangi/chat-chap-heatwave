@@ -187,7 +187,8 @@ cp ../chat-chap-heatwave/chap_model/compose.heatwave.yml ./compose.heatwave.yml
 cat >> config/configured_models/default.yaml <<'YAML'
 - url: https://github.com/gichangi/chat-chap-heatwave
   versions:
-    v1: "@main"
+    v1: "@a46166a88ac846ac983301eae80480068023244a"
+    v2: "@main"
   configurations:
     default:
       user_option_values:
@@ -255,6 +256,10 @@ File based seeding is idempotent. If a template version was already stored,
 chap-core preserves it so existing backtests retain their provenance. Change
 the configuration values or add a new version name when intentionally
 publishing a new configuration or model version.
+
+The current threshold model is seeded as `v2`. Its only required covariate is
+`max_heat_index`. The retained `v1` revision exists for provenance and may show
+the earlier rainfall and mean-temperature requirements in existing databases.
 
 The literal `$$register` in the overlay is required Compose escaping. For a 401,
 check that `SERVICEKIT_REGISTRATION_KEY` matches chap-core. Port 5010 must be
