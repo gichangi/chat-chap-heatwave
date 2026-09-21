@@ -152,10 +152,10 @@ curl http://localhost:8000/v2/services
 curl http://localhost:8000/v1/crud/configured-models
 ```
 
-The configured model should use template `heatwave-covariate-model`, have
-`uses_chapkit: true`, and list `heatwave_days`, `mean_heat_index`,
-`max_heat_index`, and `heatwave_event_count` as additional continuous
-covariates.
+The configured model should use the repository
+`https://github.com/gichangi/chat-chap-heatwave` and list `heatwave_days`,
+`mean_heat_index`, `max_heat_index`, and `heatwave_event_count` as additional
+continuous covariates.
 
 ##### Copy and paste setup
 
@@ -177,10 +177,9 @@ cp ../chat-chap-heatwave/chap_model/compose.heatwave.yml ./compose.heatwave.yml
 # Seed an explicit runnable configured model.
 # Do not add this entry to config/configured_models/default.yaml.
 cat > config/configured_models/heatwave.yaml <<'YAML'
-- url: http://heatwave-model:8000
-  uses_chapkit: true
+- url: https://github.com/gichangi/chat-chap-heatwave
   versions:
-    service_v1: "/v1"
+    v1: "@main"
   configurations:
     default:
       user_option_values:
@@ -221,12 +220,15 @@ cp /path/to/chat-chap-heatwave/chap_model/chap-core.configured-models.yaml.examp
   config/configured_models/heatwave.yaml
 ```
 
-Do not edit `config/configured_models/default.yaml`; chap-core updates replace
-that file. The example uses `http://heatwave-model:8000`, which is the service
-name and container port from `compose.heatwave.yml`. It is reachable from the
-chap container on the shared Compose network. The `versions` field is required
-by chap-core's configuration parser but is currently ignored for chapkit
-services.
+The example uses the repository URL and follows the same `versions` mapping as
+chap-core's other Git-hosted models. Pin `v1` to a commit SHA instead of
+`@main` when a deployment must remain reproducible. If you place the entry in a
+separate `heatwave.yaml`, do not also add a duplicate to `default.yaml`.
+
+This Git-hosted format makes chap-core load a root `MLProject.yaml` from the
+repository. The chapkit service and Compose registration path remain available,
+but Git-based seeding will only succeed when that compatibility file is present
+on the referenced branch or commit.
 
 Rebuild the chap and worker images so the new configuration file is included,
 then start the stack:
