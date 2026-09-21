@@ -65,8 +65,8 @@ Modeling App.
 1. `scripts/run_batch_export.py` uses Earth Engine credentials to write the
    weekly ward covariate table. Never run its submit stage accidentally: inspect
    the plan and smoke stages first.
-2. `scripts/chap_dataset.py` joins that table to health data and writes a CHAP
-   dataset. This step is credential free.
+2. `scripts/chap_dataset.py` converts the ward covariates directly into a CHAP
+   heatwave dataset. This step is credential free.
 3. `chap_model/` learns a separate seasonal Heat Index climatology for every
    ward or organization unit and flags strict threshold exceedances. Its
    container never calls Earth Engine.
@@ -85,14 +85,15 @@ Heat index is not converted to Celsius.
 
 ### 1. Build a CHAP dataset
 
-Health input must contain `time_period,location,disease_cases,population,rainfall,mean_temperature`.
-The covariate export contains `time_period,location` and the four heat columns
-above. Weekly periods are normalized to `YYYY-Www`.
+The input contains `time_period`, the ward or organization-unit identifier in
+`location`, and the four heat covariates above. The adapter derives the binary
+`heatwave` target from `heatwave_days > 0`. It does not require disease cases,
+population, rainfall, or mean temperature. Weekly periods are normalized to
+`YYYY-Www`.
 
 ```bash
 python scripts/chap_dataset.py build \
   --covariates outputs/covariate_table.csv \
-  --health health.csv \
   --geojson units.geojson \
   --crosswalk crosswalk.csv \
   --out outputs/chap_dataset.csv
@@ -119,7 +120,10 @@ uv run python main.py
 uv run chapkit test --period-type weekly
 ```
 
-The model target is `heatwave`, represented as a binary 0/1 exceedance. It
+The model dataset contains only `time_period`, organization unit (`location`),
+the binary `heatwave` target, and `max_heat_index`. It has no disease, rainfall,
+population, or general temperature fields. The target is represented as a 0/1
+exceedance. It
 treats CHAP's `location` as the DHIS2 organization-unit identifier;
 the scripts also accept `organization_unit`, `organisation_unit`, `org_unit`,
 or `ward_id` and normalize it to `location`. Training data must contain

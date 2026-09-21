@@ -1,4 +1,4 @@
-"""Build and validate CHAP datasets from weekly heatwave covariates.
+"""Build and validate CHAP heatwave datasets from weekly ward covariates.
 
 This module is deliberately pandas-only and safe to run without Earth Engine.
 CHAP's current weekly generator uses the ISO-like ``YYYY-Www`` form, which is
@@ -16,8 +16,8 @@ import pandas as pd
 
 KEY_COLUMNS = ["time_period", "location"]
 HEAT_COLUMNS = ["heatwave_days", "mean_heat_index", "max_heat_index", "heatwave_event_count"]
-HEALTH_COLUMNS = [*KEY_COLUMNS, "disease_cases", "population", "rainfall", "mean_temperature"]
-OUTPUT_COLUMNS = [*HEALTH_COLUMNS, *HEAT_COLUMNS]
+TARGET_COLUMN = "heatwave"
+OUTPUT_COLUMNS = [*KEY_COLUMNS, TARGET_COLUMN, *HEAT_COLUMNS]
 COVARIATE_COLUMNS = [*KEY_COLUMNS, *HEAT_COLUMNS]
 PERIOD_RE = re.compile(r"^(\d{4})-?W(\d{1,2})$")
 
@@ -67,12 +67,10 @@ def _apply_crosswalk(covariates: pd.DataFrame, crosswalk: pd.DataFrame) -> pd.Da
     )
 
 
-def build_dataset(covariates: pd.DataFrame, health: pd.DataFrame,
+def build_dataset(covariates: pd.DataFrame,
                   crosswalk: pd.DataFrame | None = None) -> tuple[pd.DataFrame, pd.DataFrame | None]:
     _require(covariates, COVARIATE_COLUMNS, "covariates")
-    _require(health, HEALTH_COLUMNS, "health")
     covariates = _normalize_keys(covariates)
-    health = _normalize_keys(health)
     qa_columns = [column for column in covariates.columns if column not in COVARIATE_COLUMNS]
     qa = covariates[[*KEY_COLUMNS, *qa_columns]].copy() if qa_columns else None
     covariates = covariates[COVARIATE_COLUMNS]
@@ -84,7 +82,8 @@ def build_dataset(covariates: pd.DataFrame, health: pd.DataFrame,
             )
     if covariates.duplicated(KEY_COLUMNS).any():
         raise ValueError("covariates contain duplicate (time_period, location) rows")
-    result = health[HEALTH_COLUMNS].merge(covariates, on=KEY_COLUMNS, how="left", validate="one_to_one")
+    result = covariates.copy()
+    result[TARGET_COLUMN] = (result["heatwave_days"] > 0).astype(int)
     return result[OUTPUT_COLUMNS], qa
 
 
@@ -139,9 +138,9 @@ def validate_dataset(frame: pd.DataFrame, geojson: str | Path, strict: bool = Fa
 
 
 def _build_command(args: argparse.Namespace) -> int:
-    covariates, health = pd.read_csv(args.covariates), pd.read_csv(args.health)
+    covariates = pd.read_csv(args.covariates)
     crosswalk = pd.read_csv(args.crosswalk, dtype=str) if args.crosswalk else None
-    result, qa = build_dataset(covariates, health, crosswalk)
+    result, qa = build_dataset(covariates, crosswalk)
     out = Path(args.out); out.parent.mkdir(parents=True, exist_ok=True); result.to_csv(out, index=False)
     for column, fraction in result[HEAT_COLUMNS].isna().mean().items():
         print(f"{column}: missing fraction {fraction:.2%}", file=sys.stderr)
@@ -159,7 +158,7 @@ def _validate_command(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(required=True)
-    build = sub.add_parser("build"); build.add_argument("--covariates", required=True); build.add_argument("--health", required=True); build.add_argument("--geojson"); build.add_argument("--crosswalk"); build.add_argument("--out", required=True); build.set_defaults(run=_build_command)
+    build = sub.add_parser("build"); build.add_argument("--covariates", required=True); build.add_argument("--geojson"); build.add_argument("--crosswalk"); build.add_argument("--out", required=True); build.set_defaults(run=_build_command)
     validate = sub.add_parser("validate"); validate.add_argument("--dataset", required=True); validate.add_argument("--geojson", required=True); validate.add_argument("--strict", action="store_true"); validate.set_defaults(run=_validate_command)
     args = parser.parse_args(argv)
     try:
