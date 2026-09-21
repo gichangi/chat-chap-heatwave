@@ -1,0 +1,21 @@
+# Copy this file to chap-core/config/configured_models/heatwave.yaml only when
+# your deployment requires explicit file-based seeding. Current chap-core
+# normally discovers and configures this chapkit service automatically.
+- url: http://heatwave-model:8000
+  uses_chapkit: true
+  # The parser requires versions. Chapkit service seeding currently ignores it.
+  versions:
+    service_v1: "/v1"
+  configurations:
+    default:
+      user_option_values:
+        heat_lag_weeks: 4
+        n_samples: 100
+        random_seed: 42
+        n_estimators: 200
+      additional_continuous_covariates:
+        - heatwave_days
+        - mean_heat_index
+        - max_heat_index
+        - heatwave_event_count
+

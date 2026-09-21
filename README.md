@@ -138,6 +138,62 @@ Docker Compose v2.20 or newer and a chap-core clone are required.
 4. Check `curl http://localhost:8000/v2/services` for
    `heatwave-covariate-model`, then open the DHIS2 Modeling App.
 
+#### Add it to chap-core configured models
+
+On current chap-core, service registration is sufficient. When
+`heatwave-covariate-model` registers, chap-core reads its config schema and
+creates a default configured model automatically. Confirm both layers:
+
+```bash
+# Registered chapkit service
+curl http://localhost:8000/v2/services
+
+# Runnable configured model used by the Modeling App
+curl http://localhost:8000/v1/crud/configured-models
+```
+
+The configured model should use template `heatwave-covariate-model`, have
+`uses_chapkit: true`, and list `heatwave_days`, `mean_heat_index`,
+`max_heat_index`, and `heatwave_event_count` as additional continuous
+covariates.
+
+Some installations require configured models to be declared in files. For
+those deployments, copy the supplied example into the chap-core checkout:
+
+```bash
+cp /path/to/chat-chap-heatwave/chap_model/chap-core.configured-models.yaml.example \
+  config/configured_models/heatwave.yaml
+```
+
+Do not edit `config/configured_models/default.yaml`; chap-core updates replace
+that file. The example uses `http://heatwave-model:8000`, which is the service
+name and container port from `compose.heatwave.yml`. It is reachable from the
+chap container on the shared Compose network. The `versions` field is required
+by chap-core's configuration parser but is currently ignored for chapkit
+services.
+
+Rebuild the chap and worker images so the new configuration file is included,
+then start the stack:
+
+```bash
+docker compose -f compose.yml -f compose.heatwave.yml build chap worker
+docker compose -f compose.yml -f compose.heatwave.yml up -d
+```
+
+Inspect seeding and registration if it does not appear:
+
+```bash
+docker compose -f compose.yml -f compose.heatwave.yml logs chap | \
+  grep -E "heatwave|configured model|chapkit"
+docker compose -f compose.yml -f compose.heatwave.yml logs heatwave-model
+curl http://localhost:8000/v1/crud/configured-models
+```
+
+File based seeding is idempotent. If a template version was already stored,
+chap-core preserves it so existing backtests retain their provenance. Change
+the configuration values or add a new version name when intentionally
+publishing a new configuration or model version.
+
 The literal `$$register` in the overlay is required Compose escaping. For a 401,
 check that `SERVICEKIT_REGISTRATION_KEY` matches chap-core. Port 5010 must be
 free. Apple Silicon may emit platform warnings for an amd64-only image.
