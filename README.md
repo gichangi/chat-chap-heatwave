@@ -53,3 +53,122 @@ Phases 1-4 combined are covered by 90 tests that run live against the real Earth
 
 See `.planning/PROJECT.md` and `.planning/ROADMAP.md` for full project context and phase-by-phase detail.
 
+## Using with CHAP
+
+This repository produces weekly heat and heatwave covariates and includes a
+chapkit model service (`chap_model/`) that can be added to
+[chap-core](https://github.com/dhis2-chap/chap-core) and used from the DHIS2
+Modeling App.
+
+### How the pieces fit
+
+1. `scripts/run_batch_export.py` uses Earth Engine credentials to write the
+   weekly ward covariate table. Never run its submit stage accidentally: inspect
+   the plan and smoke stages first.
+2. `scripts/chap_dataset.py` joins that table to health data and writes a CHAP
+   dataset. This step is credential free.
+3. `chap_model/` trains and predicts with lagged heat covariates. Its container
+   never calls Earth Engine.
+
+### Covariates and units
+
+| Column | Meaning |
+|---|---|
+| `heatwave_days` | Mean count of days exceeding the ward and calendar-day 90th-percentile threshold, using a 1991–2020 baseline and ±5-day pooling window |
+| `mean_heat_index` | Mean weekly NOAA/NWS Heat Index, **°F** |
+| `max_heat_index` | Maximum weekly NOAA/NWS Heat Index, **°F** |
+| `heatwave_event_count` | Mean count of qualifying events starting in the week; an event has at least three consecutive exceedance days |
+
+The means above apply when several wards are mapped to one target location.
+Heat index is not converted to Celsius.
+
+### 1. Build a CHAP dataset
+
+Health input must contain `time_period,location,disease_cases,population,rainfall,mean_temperature`.
+The covariate export contains `time_period,location` and the four heat columns
+above. Weekly periods are normalized to `YYYY-Www`.
+
+```bash
+python scripts/chap_dataset.py build \
+  --covariates outputs/covariate_table.csv \
+  --health health.csv \
+  --geojson units.geojson \
+  --crosswalk crosswalk.csv \
+  --out outputs/chap_dataset.csv
+
+python scripts/chap_dataset.py validate \
+  --dataset outputs/chap_dataset.csv \
+  --geojson units.geojson --strict
+```
+
+The optional crosswalk has `ward_id,location`. When multiple wards map to one
+location, `mean_heat_index`, `heatwave_days`, and `heatwave_event_count` use an
+unweighted mean; `max_heat_index` uses the maximum. Missing heat values remain
+empty and are reported. They are never interpreted as zero. Extra export QA
+fields are written to `<out>.qa.csv`.
+
+### 2. Run the model locally
+
+```bash
+git clone https://github.com/gichangi/chat-chap-heatwave
+cd chat-chap-heatwave/chap_model
+uv sync
+uv run python main.py
+# In another terminal:
+uv run chapkit test --period-type weekly
+```
+
+The service listens on port 9090 for local development. The committed synthetic
+data and `chap_model/tests/` provide a credential-free model contract test.
+
+### 3. Add it to chap-core
+
+Docker Compose v2.20 or newer and a chap-core clone are required.
+
+1. Copy `chap_model/compose.heatwave.yml` next to chap-core's `compose.yml`.
+2. Pull `ghcr.io/gichangi/chat-chap-heatwave-model:latest`. New GHCR packages
+   are private by default: make `chat-chap-heatwave-model` public in Package
+   settings, or run `docker login ghcr.io` on every host that pulls it.
+3. Start the combined stack:
+
+   ```bash
+   docker compose -f compose.yml -f compose.heatwave.yml up -d
+   ```
+
+4. Check `curl http://localhost:8000/v2/services` for
+   `heatwave-covariate-model`, then open the DHIS2 Modeling App.
+
+The literal `$$register` in the overlay is required Compose escaping. For a 401,
+check that `SERVICEKIT_REGISTRATION_KEY` matches chap-core. Port 5010 must be
+free. Apple Silicon may emit platform warnings for an amd64-only image.
+
+For sidecar mode, mount a weekly covariate CSV read-only and set
+`HEATWAVE_COVARIATE_TABLE` to its container path. To include the model in the
+standard chap-core bundle, add its overlay to chap-core's `compose.chapkit.yml`.
+
+### Limitations
+
+- Reanalysis heat data has no future values. The model uses a four-week lag and
+  rejects forecast horizons longer than `heat_lag_weeks` (default 4).
+- The 4,841-ward dataset may be too large for some workflows; aggregate with a
+  reviewed crosswalk when appropriate.
+- The model is experimental and reports `AssessedStatus.red`.
+- This repository currently has no LICENSE file. Add one before distributing
+  the image or listing the repository as a community model.
+
+### Origin and credit
+
+The heatwave pipeline originates from
+[eHealthAfrica/heatwave_modelling_CHAP](https://github.com/eHealthAfrica/heatwave_modelling_CHAP).
+This repository was seeded from upstream branch
+`feature/heatwave-508110-phase-0-4-gsd` at commit
+`19556d92483f4702c41d6d456b61d22f9bbf38c1`; the CHAP adapter and chapkit
+service were added here.
+
+### Reference docs
+
+- [Chapkit documentation](https://dhis2-chap.github.io/chapkit/)
+- [Chapkit shell runner contract](https://dhis2-chap.github.io/chapkit/guides/shell-runner/)
+- [Chap-core modeling documentation](https://chap.dhis2.org/chap-modeling-platform/)
+
+

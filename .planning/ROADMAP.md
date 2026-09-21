@@ -174,6 +174,17 @@ Plans:
 
 **Plans**: TBD
 
+### Phase 8: CHAP Integration
+
+**Goal**: Package the weekly heat covariates as an offline CHAP dataset and an experimental chapkit model service.
+**Depends on**: Phase 4
+**Requirements**: CHAP-01, CHAP-02, CHAP-03, CHAP-04
+
+- [x] Offline dataset adapter and validation
+- [x] Lagged heatwave chapkit model and credential-free tests
+- [x] Docker image, standalone compose, and chap-core overlay
+- [x] Operator documentation and origin credit
+
 ## Progress
 
 **Execution Order:**
@@ -188,3 +199,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 5. Presentation Layer Rewrite | 0/TBD | Not started | - |
 | 6. Documentation | 0/TBD | Not started | - |
 | 7. Polish (Optional) | 0/TBD | Not started | - |
+| 8. CHAP Integration | 4/4 | Complete | 2026-09-21 |

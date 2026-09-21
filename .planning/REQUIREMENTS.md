@@ -56,6 +56,13 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **POLISH-01**: `tests/test_config.py` covers config-loading edge cases (missing keys, malformed YAML)
 - [ ] **POLISH-02**: (Optional) a CI workflow runs the test suite automatically on push — not required for v1 completion
 
+### CHAP integration
+
+- [x] **CHAP-01**: An offline adapter joins weekly heat covariates to CHAP health data and validates periods, locations, gaps, duplicates, and missing values.
+- [x] **CHAP-02**: A chapkit service trains and predicts from lagged heat covariates without Earth Engine credentials.
+- [x] **CHAP-03**: A reproducible Docker image and chap-core compose overlay are provided.
+- [x] **CHAP-04**: The README documents data preparation, deployment, limitations, GHCR access, and upstream credit.
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
@@ -109,6 +116,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOC-02 | Phase 6 | Pending |
 | POLISH-01 | Phase 7 | Pending |
 | POLISH-02 | Phase 7 | Pending |
+| CHAP-01 | Phase 8 | Complete |
+| CHAP-02 | Phase 8 | Complete |
+| CHAP-03 | Phase 8 | Complete |
+| CHAP-04 | Phase 8 | Complete |
 
 **Coverage:**
 - v1 requirements: 28 total
